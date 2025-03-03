@@ -66,6 +66,48 @@ app.post('/login', async (req, res) => {
     res.json({ token });
 });
 
+// 📝 Create Post API (with Hashtags & Friends Extraction)
+app.post('/create-post', authenticateJWT, (req, res) => {
+    const { title, content } = req.body;
+    const created_by = req.user.username;
+
+    if (!title || !content) {
+        return res.status(400).json({ error: 'Title and content are required' });
+    }
+
+    // Store post
+    const postId = posts.length + 1;
+    posts.push({ postId, title, content, created_by });
+
+    // Extract hashtags from title (words starting with #)
+    const extractedHashtags = [...new Set(title.match(/#\w+/g) || [])];
+
+    // Store hashtags if they don’t exist
+    extractedHashtags.forEach(hashtag => {
+        if (!hashtags.includes(hashtag)) {
+            hashtags.push(hashtag);
+        }
+        postHashtags.push({ postId, hashtag });
+    });
+
+    // Extract friend mentions from title (words starting with @)
+    const mentionedFriends = [...new Set(title.match(/@\w+/g) || [])];
+
+    mentionedFriends.forEach(friend => {
+        const friendUsername = friend.substring(1); // Remove @
+        const isFriend = followers.some(f => 
+            (f.user_id === created_by && f.follower_id === friendUsername) ||
+            (f.user_id === friendUsername && f.follower_id === created_by)
+        );
+
+        if (isFriend) {
+            postFriends.push({ postId, friendUsername });
+        }
+    });
+
+    res.status(201).json({ message: 'Post created successfully', postId, extractedHashtags, mentionedFriends });
+});
+
 // 🔍 API to Validate JWT
 app.get('/validate-token', authenticateJWT, (req, res) => {
     res.json({ message: 'Token is valid', user: req.user });
