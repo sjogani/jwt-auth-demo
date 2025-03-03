@@ -13,6 +13,12 @@ const users = [
     { username: "testuser", password: "$2b$10$C4r1wj/KaLb6n9SL29Z5i.hO4uoxfYTNBoZa2d8DylfdvCO46/nhm" }
 ];
 
+const posts = [];  // Array to store posts
+const hashtags = [];  // Array to store hashtags
+const postHashtags = [];  // Array to store post-hashtag relationships
+const followers = [{ user_id: "testuser", follower_id: "john_doe" }]; // Array for user relationships
+const postFriends = [];  // Array to store post-friend relationships
+
 // 🔐 Middleware to Validate JWT
 const authenticateJWT = (req, res, next) => {
     const authHeader = req.headers.authorization;
