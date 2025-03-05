@@ -2,10 +2,12 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const db = require('./db'); // Database connection
-
+const requestLogger = require('./middleware/logger');
 const app = express();
+
 app.use(express.json());
 app.use(cors());
+app.use(requestLogger);
 
 // 📝 Register User
 app.post('/register', async (req, res) => {
