@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const bcrypt = require('bcrypt'); 
+const jwt = require('jsonwebtoken'); 
 const db = require('./db'); // Database connection
 const authenticateJWT = require('./middleware/authenticate'); // JWT Authentication Middleware
 const requestLogger = require('./middleware/logger'); // Logging Middleware
@@ -32,13 +34,13 @@ app.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         const [user] = await db.query("SELECT * FROM users WHERE username = ?", [username]);
-
-        if (!user.length || !(await bcrypt.compare(password, user[0].password))) {
+        
+        if (user.length === 0|| !(await bcrypt.compare(password, user[0].password))) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
-
+        
         const token = jwt.sign({ username: user[0].username }, process.env.JWT_SECRET, { expiresIn: '1h' });
-
+        
         res.json({ token });
     } catch (error) {
         res.status(500).json({ error: 'Database error', details: error });
