@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const db = require('./db'); // Database connection
 const requestLogger = require('./middleware/logger');
+const authenticateJWT = require('./middleware/auth');
 const app = express();
 
 app.use(express.json());
@@ -86,6 +87,10 @@ app.post('/create-post', authenticateJWT, async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: 'Database error', details: error });
     }
+});
+
+app.get('/protected', authenticateJWT, (req, res) => {
+    res.json({ message: 'Protected content', user: req.user });
 });
 
 
