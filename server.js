@@ -7,6 +7,7 @@ const db = require('./db'); // Database connection
 const authenticateJWT = require('./middleware/authenticate'); // JWT Authentication Middleware
 const requestLogger = require('./middleware/logger'); // Logging Middleware
 const rateLimiter = require('./middleware/rateLimiter'); // Rate Limiting Middleware
+const { encryptData, decryptData } = require('./cryptoUtils'); 
 
 const app = express();
 
@@ -14,6 +15,18 @@ app.use(express.json());
 app.use(cors());
 app.use(requestLogger); // Logs all requests
 app.use(rateLimiter); // Limits request rate
+
+// 🔹 Middleware to Decrypt Incoming Requests
+app.use((req, res, next) => {
+    if (req.body && req.body.encrypted) {
+        try {
+            req.body = decryptData(req.body.encrypted);
+        } catch (error) {
+            return res.status(400).json({ error: "Invalid encrypted request" });
+        }
+    }
+    next();
+});
 
 // 📝 Register User
 app.post('/register', async (req, res) => {
@@ -23,9 +36,11 @@ app.post('/register', async (req, res) => {
         
         await db.query("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashedPassword]);
         
-        res.status(201).json({ message: 'User registered successfully' });
+        const response = encryptData({ message: 'User registered successfully' });
+        res.status(201).json({ encrypted: response });
     } catch (error) {
-        res.status(500).json({ error: 'Database error', details: error });
+        const response = encryptData({ error: 'Database error', details: error });
+        res.status(500).json({ encrypted: response }); 
     }
 });
 
@@ -41,9 +56,11 @@ app.post('/login', async (req, res) => {
         
         const token = jwt.sign({ username: user[0].username }, process.env.JWT_SECRET, { expiresIn: '1h' });
         
-        res.json({ token });
+        const response = encryptData({ token });
+        res.json({ encrypted: response });
     } catch (error) {
-        res.status(500).json({ error: 'Database error', details: error });
+        const response = encryptData({ error: 'Database error', details: error });
+        res.status(500).json({ encrypted: response });
     }
 });
 
@@ -87,9 +104,11 @@ app.post('/create-post', authenticateJWT, async (req, res) => {
             }
         }
 
-        res.status(201).json({ message: 'Post created successfully', postId, extractedHashtags, mentionedFriends });
+        const response = encryptData({ message: 'Post created successfully', postId, extractedHashtags, mentionedFriends });
+        res.status(201).json({ encrypted: response });
     } catch (error) {
-        res.status(500).json({ error: 'Database error', details: error });
+        const response = encryptData({ error: 'Database error', details: error });
+        res.status(500).json({ encrypted: response });
     }
 });
 
