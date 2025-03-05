@@ -39,6 +39,40 @@ app.post('/login', async (req, res) => {
     }
 });
 
+
+// 📝 Create Post API
+app.post('/create-post', authenticateJWT, async (req, res) => {
+    const { title, content } = req.body;
+    const created_by = req.user.username;
+
+    if (!title || !content) {
+        return res.status(400).json({ error: 'Title and content are required' });
+    }
+
+    try {
+        // Insert post
+        const [postResult] = await db.query("INSERT INTO post_masters (title, content, created_by) VALUES (?, ?, ?)", 
+            [title, content, created_by]);
+        const postId = postResult.insertId;
+
+        // Extract hashtags
+        const extractedHashtags = [...new Set(title.match(/#\w+/g) || [])];
+        for (const hashtag of extractedHashtags) {
+            let [hashRows] = await db.query("SELECT id FROM hash_masters WHERE hashtag = ?", [hashtag]);
+            if (hashRows.length === 0) {
+                const [insertResult] = await db.query("INSERT INTO hash_masters (hashtag) VALUES (?)", [hashtag]);
+                hashRows = [{ id: insertResult.insertId }];
+            }
+            await db.query("INSERT INTO post_hash (post_id, hashtag_id) VALUES (?, ?)", [postId, hashRows[0].id]);
+        }
+
+        res.status(201).json({ message: 'Post created successfully', postId, extractedHashtags });
+    } catch (error) {
+        res.status(500).json({ error: 'Database error', details: error });
+    }
+});
+
+
 // Start Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
