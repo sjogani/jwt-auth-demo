@@ -40,7 +40,7 @@ app.post('/login', async (req, res) => {
 });
 
 
-// 📝 Create Post API
+// 📝 Create Post API (with Hashtags & Friends Extraction)
 app.post('/create-post', authenticateJWT, async (req, res) => {
     const { title, content } = req.body;
     const created_by = req.user.username;
@@ -50,12 +50,12 @@ app.post('/create-post', authenticateJWT, async (req, res) => {
     }
 
     try {
-        // Insert post
+        // Insert post into database
         const [postResult] = await db.query("INSERT INTO post_masters (title, content, created_by) VALUES (?, ?, ?)", 
             [title, content, created_by]);
         const postId = postResult.insertId;
 
-        // Extract hashtags
+        // Extract & Store Hashtags
         const extractedHashtags = [...new Set(title.match(/#\w+/g) || [])];
         for (const hashtag of extractedHashtags) {
             let [hashRows] = await db.query("SELECT id FROM hash_masters WHERE hashtag = ?", [hashtag]);
@@ -66,7 +66,21 @@ app.post('/create-post', authenticateJWT, async (req, res) => {
             await db.query("INSERT INTO post_hash (post_id, hashtag_id) VALUES (?, ?)", [postId, hashRows[0].id]);
         }
 
-        res.status(201).json({ message: 'Post created successfully', postId, extractedHashtags });
+        // Extract & Store Friends
+        const mentionedFriends = [...new Set(title.match(/@\w+/g) || [])];
+        for (const friend of mentionedFriends) {
+            const friendUsername = friend.substring(1); // Remove '@'
+            const [friendRows] = await db.query(
+                "SELECT * FROM followers WHERE (user_id = ? AND follower_id = ?) OR (user_id = ? AND follower_id = ?)", 
+                [created_by, friendUsername, friendUsername, created_by]
+            );
+
+            if (friendRows.length > 0) {
+                await db.query("INSERT INTO post_friend_details (post_id, friend_username) VALUES (?, ?)", [postId, friendUsername]);
+            }
+        }
+
+        res.status(201).json({ message: 'Post created successfully', postId, extractedHashtags, mentionedFriends });
     } catch (error) {
         res.status(500).json({ error: 'Database error', details: error });
     }
