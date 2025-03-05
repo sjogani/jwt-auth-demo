@@ -2,22 +2,26 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const db = require('./db'); // Database connection
-const requestLogger = require('./middleware/logger');
-const authenticateJWT = require('./middleware/auth');
+const authenticateJWT = require('./middleware/authenticate'); // JWT Authentication Middleware
+const requestLogger = require('./middleware/logger'); // Logging Middleware
+const rateLimiter = require('./middleware/rateLimiter'); // Rate Limiting Middleware
+
 const app = express();
 
 app.use(express.json());
 app.use(cors());
-app.use(requestLogger);
+app.use(requestLogger); // Logs all requests
+app.use(rateLimiter); // Limits request rate
 
 // 📝 Register User
 app.post('/register', async (req, res) => {
-    const { username, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-
     try {
+        const { username, password } = req.body;
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
         await db.query("INSERT INTO users (username, password) VALUES (?, ?)", [username, hashedPassword]);
-        res.status(201).send('User registered');
+        
+        res.status(201).json({ message: 'User registered successfully' });
     } catch (error) {
         res.status(500).json({ error: 'Database error', details: error });
     }
@@ -25,23 +29,21 @@ app.post('/register', async (req, res) => {
 
 // 🔑 Login & Generate JWT
 app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-
     try {
-        const [rows] = await db.query("SELECT * FROM users WHERE username = ?", [username]);
-        const user = rows[0];
+        const { username, password } = req.body;
+        const [user] = await db.query("SELECT * FROM users WHERE username = ?", [username]);
 
-        if (!user || !(await bcrypt.compare(password, user.password))) {
+        if (!user.length || !(await bcrypt.compare(password, user[0].password))) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        const token = jwt.sign({ username: user.username }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        const token = jwt.sign({ username: user[0].username }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
         res.json({ token });
     } catch (error) {
         res.status(500).json({ error: 'Database error', details: error });
     }
 });
-
 
 // 📝 Create Post API (with Hashtags & Friends Extraction)
 app.post('/create-post', authenticateJWT, async (req, res) => {
@@ -89,11 +91,16 @@ app.post('/create-post', authenticateJWT, async (req, res) => {
     }
 });
 
+// 🔍 API to Validate JWT
+app.get('/validate-token', authenticateJWT, (req, res) => {
+    res.json({ message: 'Token is valid', user: req.user });
+});
+
+// 🔐 Protected Route
 app.get('/protected', authenticateJWT, (req, res) => {
     res.json({ message: 'Protected content', user: req.user });
 });
 
-
 // Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
